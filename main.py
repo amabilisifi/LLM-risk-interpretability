@@ -1,44 +1,63 @@
-from transformers import AutoTokenizer, AutoModelForCausalLM
-import torch
 import os
-from dotenv import load_dotenv
 import logging
+from dotenv import load_dotenv
+from model_loader import load_model_and_tokenizer
 
-# Set up logging
+# Logging setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Load env
 load_dotenv()
+auth_token = os.getenv("AUTH_TOKEN")
 
-model_name = "google/gemma-2b"
-auth_token = os.getenv('AUTH_TOKEN')
-# print("Auth Token:", auth_token)
-if auth_token is None:
-    raise ValueError("AUTH_TOKEN not found in environment variables.")
+# Model config
+MODEL_NAME = "google/gemma-2b"
+LOCAL_DIR = "./models/gemma-2b"
 
+# ✅ Load model + tokenizer safely
 try:
-    logger.info("Loading tokenizer...")
-    tokenizer = AutoTokenizer.from_pretrained(model_name, token=auth_token)
-    print("Tokenizer loaded successfully.")
-except Exception as e:
-    logger.error(f"Error loading tokenizer: {e}")
-    exit(1)
-
-try:
-    logger.info("Loading model...")
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name,
-        device_map="auto",
-        torch_dtype=torch.float16,
-        token=auth_token
+    model, tokenizer = load_model_and_tokenizer(
+        MODEL_NAME,
+        auth_token,
+        local_dir=LOCAL_DIR,
+        use_4bit=True   # set False if you want full precision
     )
-    model.eval()
-    print("Model loaded successfully.")
+    print("✅ Model and tokenizer loaded successfully.")
 except Exception as e:
-    logger.error(f"Error loading model: {e}")
+    logger.error(f"Failed to load model: {e}")
     exit(1)
 
-# input_text = "Hello, how can I help you today?"
+# --- Test prompt ---
+input_text = "Hello, how are you today?"
+inputs = tokenizer(input_text, return_tensors="pt").to(next(model.parameters()).device)
+outputs = model.generate(**inputs, max_length=50)
+print(tokenizer.decode(outputs[0], skip_special_tokens=True))
+
+
+# # --- PROMPT GENERATION AND INFERENCE ---
+
+# # 1. Set the desired entrance fee
+# entrance_fee = 3
+
+# # 2. Generate the prompt using the function
+# input_text = get_st_petersburg_prompt(entrance_fee)
+
+# print("--- [Sending Prompt to Model] ---")
+# print(input_text)
+
+# # 3. Tokenize the input and move it to the correct device
 # inputs = tokenizer(input_text, return_tensors="pt").to(next(model.parameters()).device)
-# outputs = model.generate(**inputs, max_length=50)
-# print(tokenizer.decode(outputs[0], skip_special_tokens=True))
+
+# # 4. Generate the output
+# # Note: Increased max_length to allow for a more detailed, reasoned response.
+# outputs = model.generate(**inputs, max_length=350) 
+
+# # 5. Decode and print the result
+# result = tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+# print("\n--- [Model's Response] ---")
+# print(result)
+
+
+
