@@ -1,40 +1,65 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import BitsAndBytesConfig   
 import torch
-import os
 import logging
+import os
+from models_enum import ModelEnum
 
 # Set up logging for this module
 logger = logging.getLogger(__name__)
 
-def load_model_and_tokenizer():
-    """
-    Loads the Gemma-2b model and tokenizer from Hugging Face.
-    Handles authentication and device mapping.
-    """
-    model_name = "google/gemma-2b"
-    auth_token = os.getenv('AUTH_TOKEN')
-    
+_MODEL_CACHE = {}
+
+def load_model_and_tokenizer(model_enum: ModelEnum, auth_token: str, local_dir="./models", use_4bit=False):
+
     if auth_token is None:
-        raise ValueError("AUTH_TOKEN not found in environment variables. Make sure .env file is loaded.")
+        raise ValueError("AUTH_TOKEN not found in environment variables. Make sure .env is loaded.")
+    
+    model_name = ModelEnum.get_model_name(model_enum)
+
+    if model_name in _MODEL_CACHE:
+        logger.info(f"Model '{model_name}' found in cache. Returning cached version.")
+        return _MODEL_CACHE[model_name]
+    
+    # Make sure local directory exists
+    os.makedirs(local_dir, exist_ok=True)
 
     try:
-        logger.info(f"Loading tokenizer for '{model_name}'...")
-        tokenizer = AutoTokenizer.from_pretrained(model_name, token=auth_token)
+        logger.info(f"Loading tokenizer for '{model_name}' from {local_dir}...")
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_name,
+            token=auth_token,
+            cache_dir=local_dir  # ensures persistence
+        )
     except Exception as e:
         logger.error(f"Error loading tokenizer: {e}")
-        raise # Re-raise the exception to stop the program
+        raise
 
     try:
-        logger.info(f"Loading model '{model_name}'...")
+        logger.info(f"Loading model '{model_name}' from {local_dir}...")
+        quant_config = None
+        if use_4bit:
+            quant_config = BitsAndBytesConfig(load_in_4bit=True)
+
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            device_map="auto",
-            torch_dtype=torch.float16,
-            token=auth_token
+            cache_dir=local_dir,
+            device_map="auto",              
+            torch_dtype=torch.float16,   
+            dtype=torch.float16,
+            quantization_config=quant_config, 
+            token=auth_token,
+            resume_download=True,
+            # temperature=0.5
         )
         model.eval()
-    except Exception as e:
-        logger.error(f"Error loading model: {e}")
-        raise # Re-raise the exception
 
-    return model, tokenizer
+        _MODEL_CACHE[model_name] = (model, tokenizer)
+        return model, tokenizer
+
+    except Exception as e:
+        logger.error(f"Error loading model '{model_name}': {e}")
+        if model_name in _MODEL_CACHE:
+            del _MODEL_CACHE[model_name]
+        raise
+

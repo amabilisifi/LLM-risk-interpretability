@@ -1,0 +1,7 @@
+transformers>=4.38.0
+torch>=2.0.0
+python-dotenv>=1.0.0
+accelerate>=0.21.0
+bitsandbytes>=0.41.0
+pandas
+matplotlib
