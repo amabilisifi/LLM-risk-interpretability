@@ -1,11 +1,15 @@
 from enum import Enum
 
 class ModelEnum(Enum):
-    GEMMA_2B = "google/gemma-2b" # for trying and initial stuff - baseline
-    GEMMA_7B = "google/gemma-7b" # maybe later for comparing gemma
-    LLAMA3_8B = "meta-llama/Meta-Llama-3-8B" # main model 1
-    MISTRAL_7B = "mistralai/Mistral-7B-v0.1"  # main model 2
-    # maybe later optional phi-4
+    '''
+    Baseline: Gemma-2B.
+    Core: Gemma-7B, LLaMA-3-8B, Phi-4-14B.
+    Stretch: LLaMA-3-13B/14B.
+    '''
+    GEMMA_2B = "google/gemma-2b"  
+    GEMMA_7B = "google/gemma-7b" 
+    LLAMA3_8B = "meta-llama/Meta-Llama-3-8B" 
+    PHI_4 = "microsoft/phi-4" 
 
     @classmethod
     def get_model_name(cls, enum_member):
