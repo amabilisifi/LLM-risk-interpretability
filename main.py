@@ -9,7 +9,7 @@ from model_loader import load_model_and_tokenizer
 from models_enum import ModelEnum
 from prompts import get_st_petersburg_prompt
 from output_utils import generate_json_output
-from logit_lens import apply_logit_lens, analyze_logit_lense  # Note: fix import if filename is logit_lense.py
+from logit_lens import apply_logit_lens, analyze_logit_lense, analyze_logit_lense_extended
 
 # --- Logging setup ---
 logging.basicConfig(level=logging.INFO)
@@ -20,7 +20,7 @@ load_dotenv()
 auth_token = os.getenv("AUTH_TOKEN")
 
 # --- Model setup ---
-MODEL_NAME = ModelEnum.LLAMA3_8B
+MODEL_NAME = ModelEnum.GEMMA_2B
 LOCAL_DIR = "./models/" + ModelEnum.get_model_name(MODEL_NAME)
 
 try:
@@ -42,7 +42,7 @@ output_dir = "./outputs"
 os.makedirs(output_dir, exist_ok=True)
 
 # --- Prompt ---
-entrance_fee = 100
+entrance_fee = 1
 input_text = get_st_petersburg_prompt(entrance_fee)
 print("--- [Sending Prompt to Model] ---")
 print(input_text)
@@ -87,10 +87,12 @@ except Exception as e:
 try:
     print("\n--- [Logit Lens Analysis] ---")
     res = apply_logit_lens(model, tokenizer, output_path)  # Fixed: pass file path, not sequences
-    print(res)
+    # print(res)
     print("kokokok")
     ana = analyze_logit_lense(res, timestamp)  # Added timestamp for dynamic JSON/plot naming
-    print(ana)
+    # print(ana)
+    mt = analyze_logit_lense_extended(res,timestamp)
+    print(mt)
     print("jojojoji")
 except Exception as e:
     logger.error(f"Failed to apply logit lens: {e}")

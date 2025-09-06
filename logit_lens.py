@@ -1,8 +1,10 @@
 import torch
 import logging
 import json
-import pandas as pd
+# import pandas as pd
 import matplotlib.pyplot as plt
+from keywords import ST_PETERSBURG_KEYWORDS
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -140,4 +142,121 @@ def analyze_logit_lense(logit_lens_results, timestamp):
     logger.info(f"Logit lens plot saved to {plot_path}")
 
     # Return for printing
+    return full_results
+
+def entropy(probs):
+    p = probs.detach().cpu().numpy()
+    p = np.maximum(p, 1e-12)  # avoid log(0)
+    return float(-np.sum(p * np.log(p)))
+
+def simple_pos_guess(token: str):
+    """Heuristic POS guesser (no spaCy needed)."""
+    if token.endswith("ing"):
+        return "VERB"
+    elif token.istitle():
+        return "NOUN"
+    elif token.endswith("ly"):
+        return "ADV"
+    elif token.endswith("ous") or token.endswith("ive") or token.endswith("al"):
+        return "ADJ"
+    else:
+        return "OTHER"
+
+def analyze_logit_lense_extended(logit_lens_results, timestamp):
+    if not logit_lens_results["layers"]:
+        logger.warning("No layers to analyze.")
+        return None
+
+    results = []
+    layers, play_probs, pass_probs, risk_scores = [], [], [], []
+    confidences, entropies, related_word_flags, pos_counts = [], [], [], []
+
+    for layer in logit_lens_results["layers"]:
+        play_p = layer["play_probability"]
+        pass_p = layer["pass_probability"]
+        risk = play_p - pass_p
+        conf = abs(risk) / (play_p + pass_p + 1e-12)
+
+        # Approx entropy from top probs
+        top_probs = np.array(layer["top_probabilities"])
+        top_probs /= top_probs.sum()
+        H = -np.sum(top_probs * np.log(top_probs + 1e-12))
+
+        # Risk-related token flag
+        related = any(tok.lower() in ST_PETERSBURG_KEYWORDS for tok in layer["top_tokens"])
+        related_word_flags.append(related)
+
+        # Heuristic POS counts
+        pos_dict = {"NOUN":0,"VERB":0,"ADJ":0,"ADV":0,"OTHER":0}
+        for tok in layer["top_tokens"]:
+            pos = simple_pos_guess(tok)
+            pos_dict[pos] += 1
+
+        results.append({
+            "layer": layer["layer_index"],
+            "play_probability": float(play_p),
+            "pass_probability": float(pass_p),
+            "risk_score": float(risk),
+            "relative_confidence": float(conf),
+            "entropy": float(H),
+            "top_tokens": layer["top_tokens"][:5],
+            "risk_related_token": related,
+            "pos_counts": pos_dict
+        })
+
+        layers.append(layer["layer_index"])
+        play_probs.append(play_p)
+        pass_probs.append(pass_p)
+        risk_scores.append(risk)
+        confidences.append(conf)
+        entropies.append(H)
+        pos_counts.append(pos_dict)
+
+    # Detect crossover point
+    crossover_layer = None
+    for i in range(1, len(risk_scores)):
+        if risk_scores[i-1] <= 0 < risk_scores[i]:
+            crossover_layer = layers[i]
+            break
+
+    insights = {
+        "max_risk_layer": layers[np.argmax(risk_scores)],
+        "min_risk_layer": layers[np.argmin(risk_scores)],
+        "crossover_layer": crossover_layer,
+        "average_confidence": float(np.mean(confidences)),
+        "average_entropy": float(np.mean(entropies)),
+        "trend_summary": "Play > Pass by end" if play_probs[-1] > pass_probs[-1] else "Pass > Play by end"
+    }
+    full_results = {"results": results, "insights": insights}
+
+    # Save JSON
+    json_path = f"outputs/logit_lens_results_extended_{timestamp}.json"
+    with open(json_path, "w") as f:
+        json.dump(full_results, f, indent=2)
+    logger.info(f"Extended Logit lens JSON saved to {json_path}")
+
+    # --- Plotting ---
+    plt.figure(figsize=(12, 7))
+    plt.plot(layers, risk_scores, label="Risk (Play - Pass)", marker="x", linestyle="--")
+    plt.plot(layers, confidences, label="Relative Confidence", marker="o")
+    plt.plot(layers, entropies, label="Entropy", marker="s")
+
+    if crossover_layer is not None:
+        plt.axvline(crossover_layer, color="red", linestyle=":", label=f"Crossover @ layer {crossover_layer}")
+
+    # Annotate risk-related token layers
+    for i, flag in enumerate(related_word_flags):
+        if flag:
+            plt.scatter(layers[i], confidences[i], color="purple", s=80, marker="*", label="Risk-related token" if i==0 else "")
+
+    plt.xlabel("Layer Index")
+    plt.ylabel("Value")
+    plt.title("Logit Lens Extended Analysis: Risk, Confidence, Entropy")
+    plt.legend()
+    plt.grid(True)
+    plot_path = f"outputs/logit_lens_extended_plot_{timestamp}.png"
+    plt.savefig(plot_path)
+    plt.close()
+    logger.info(f"Extended plot saved to {plot_path}")
+
     return full_results

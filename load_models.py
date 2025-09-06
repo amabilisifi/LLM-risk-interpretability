@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 auth_token = os.getenv("AUTH_TOKEN")
 
-MODEL_NAME = ModelEnum.L
+MODEL_NAME = ModelEnum.PHI_4
 LOCAL_DIR = "./models/" + ModelEnum.get_model_name(MODEL_NAME)
 
 try:
