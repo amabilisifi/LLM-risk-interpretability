@@ -61,7 +61,6 @@ def apply_logit_lens(model, tokenizer, output_path):
         topk = torch.topk(probs, 5)
         decoded = [tokenizer.decode([i.item()]) for i in topk.indices]
         top_probs = [float(v) for v in topk.values]
-        top_2_prob_margin = top_probs[0] - top_probs[1] if len(top_probs) > 1 else 0.0
 
         # Extract play/pass probabilities
         play_prob = float(probs[play_token_id]) if play_token_id is not None else 0.0
@@ -75,7 +74,6 @@ def apply_logit_lens(model, tokenizer, output_path):
             "layer_index": layer_idx,
             "top_tokens": decoded,
             "top_probabilities": top_probs,
-            "top_2_prob_margin": top_2_prob_margin,
             "play_probability": play_prob,
             "pass_probability": pass_prob
         })
@@ -191,30 +189,12 @@ def analyze_logit_lense_extended(logit_lens_results, timestamp):
     results = []
     layers, play_probs, pass_probs, risk_scores = [], [], [], []
     confidences, entropies, related_word_flags, pos_counts = [], [], [], []
-    top_2_margins = []
-    
-    # Store decision flips
-    decision_flips = []
-    current_decision = None
 
     for layer in logit_lens_results["layers"]:
         play_p = layer["play_probability"]
         pass_p = layer["pass_probability"]
         risk = play_p - pass_p
         conf = abs(risk) / (play_p + pass_p + 1e-12)
-
-        # Check for decision flip
-        if play_p > pass_p:
-            new_decision = "play"
-        elif pass_p > play_p:
-            new_decision = "pass"
-        else:
-            new_decision = None # Tie or no clear leader
-
-        if current_decision is not None and new_decision is not None and new_decision != current_decision:
-            decision_flips.append(layer["layer_index"])
-            
-        current_decision = new_decision
 
         # Approx entropy from top probs
         top_probs = np.array(layer["top_probabilities"])
@@ -237,7 +217,6 @@ def analyze_logit_lense_extended(logit_lens_results, timestamp):
             "pass_probability": float(pass_p),
             "risk_score": float(risk),
             "relative_confidence": float(conf),
-            "top_2_prob_margin": float(layer["top_2_prob_margin"]),
             "entropy": float(H),
             "top_tokens": layer["top_tokens"][:5],
             "risk_related_token": related,
@@ -250,7 +229,6 @@ def analyze_logit_lense_extended(logit_lens_results, timestamp):
         risk_scores.append(risk)
         confidences.append(conf)
         entropies.append(H)
-        top_2_margins.append(layer["top_2_prob_margin"])
         pos_counts.append(pos_dict)
 
     # Detect crossover point
@@ -264,10 +242,8 @@ def analyze_logit_lense_extended(logit_lens_results, timestamp):
         "max_risk_layer": layers[np.argmax(risk_scores)],
         "min_risk_layer": layers[np.argmin(risk_scores)],
         "crossover_layer": crossover_layer,
-        "decision_flips": decision_flips,
         "average_confidence": float(np.mean(confidences)),
         "average_entropy": float(np.mean(entropies)),
-        "average_margin": float(np.mean(top_2_margins)),
         "trend_summary": "Play > Pass by end" if play_probs[-1] > pass_probs[-1] else "Pass > Play by end"
     }
     full_results = {"results": results, "insights": insights}
@@ -287,10 +263,6 @@ def analyze_logit_lense_extended(logit_lens_results, timestamp):
     if crossover_layer is not None:
         plt.axvline(crossover_layer, color="red", linestyle=":", label=f"Crossover @ layer {crossover_layer}")
 
-    # Annotate decision flips
-    for flip_layer in decision_flips:
-        plt.axvline(flip_layer, color="blue", linestyle="--", label="Decision Flip" if flip_layer == decision_flips[0] else "")
-        
     # Annotate risk-related token layers
     for i, flag in enumerate(related_word_flags):
         if flag:
@@ -306,17 +278,4 @@ def analyze_logit_lense_extended(logit_lens_results, timestamp):
     plt.close()
     logger.info(f"Extended plot saved to {plot_path}")
 
-    # New plot for margin
-    plt.figure(figsize=(10, 6))
-    plt.plot(layers, top_2_margins, label="Top 1 vs Top 2 Margin", marker='o')
-    plt.xlabel('Layer Index')
-    plt.ylabel('Probability Margin')
-    plt.title('Logit Lens: Margin Between Top 1 and Top 2 Tokens')
-    plt.legend()
-    plt.grid(True)
-    plot_path_margin = f"outputs/logit_lens_margin_plot_{timestamp}.png"
-    plt.savefig(plot_path_margin)
-    plt.close()
-    logger.info(f"Margin plot saved to {plot_path_margin}")
-    
     return full_results

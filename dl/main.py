@@ -7,7 +7,7 @@ from datetime import datetime
 
 from model_loader import load_model_and_tokenizer
 from models_enum import ModelEnum
-from prompts import get_st_petersburg_prompt
+from prompts import get_st_petersburg_prompt, get_st_petersburg_prompt_cot
 from output_utils import generate_json_output
 from logit_lens import apply_logit_lens, analyze_logit_lense, analyze_logit_lense_extended
 
@@ -20,7 +20,7 @@ load_dotenv()
 auth_token = os.getenv("AUTH_TOKEN")
 
 # --- Model setup ---
-MODEL_NAME = ModelEnum.LLAMA3_8B
+MODEL_NAME = ModelEnum.GEMMA_2B
 LOCAL_DIR = "./models/" + ModelEnum.get_model_name(MODEL_NAME)
 
 try:
@@ -42,7 +42,7 @@ output_dir = "./outputs"
 os.makedirs(output_dir, exist_ok=True)
 
 # --- Prompt ---
-entrance_fee = 3
+entrance_fee = 1000000
 input_text = get_st_petersburg_prompt(entrance_fee)
 print("--- [Sending Prompt to Model] ---")
 print(input_text)
