@@ -42,7 +42,7 @@ output_dir = "./outputs"
 os.makedirs(output_dir, exist_ok=True)
 
 # --- Prompt ---
-entrance_fee = 1
+entrance_fee = 100
 input_text = get_st_petersburg_prompt(entrance_fee)
 print("--- [Sending Prompt to Model] ---")
 print(input_text)
@@ -83,17 +83,18 @@ try:
 except Exception as e:
     logger.error(f"Failed to save torch tensors: {e}")
 
-# --- Apply logit lens ---
+# --- Apply logit lens ------------------------------------------------------------------------------------
 try:
     print("\n--- [Logit Lens Analysis] ---")
-    res = apply_logit_lens(model, tokenizer, output_path)  # Fixed: pass file path, not sequences
+    res = apply_logit_lens(model, tokenizer, output_path)
     # print(res)
-    print("kokokok")
-    ana = analyze_logit_lense(res, timestamp)  # Added timestamp for dynamic JSON/plot naming
+    # print("kokokok")
+    ana = analyze_logit_lense(res, timestamp)  
     # print(ana)
     mt = analyze_logit_lense_extended(res,timestamp)
-    print(mt)
-    print("jojojoji")
+    # gs = generate_summary_report(mt)
+    # print(mt)
+    # print("jojojoji")
 except Exception as e:
     logger.error(f"Failed to apply logit lens: {e}")
 
