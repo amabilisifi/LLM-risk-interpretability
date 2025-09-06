@@ -90,22 +90,26 @@ def analyze_logit_lense(logit_lens_results, timestamp):
     play_probs = []
     pass_probs = []
     risk_scores = []
+    confidence_scores = []
 
     for layer in logit_lens_results["layers"]:
         play_p = layer["play_probability"]
         pass_p = layer["pass_probability"]
         risk = play_p - pass_p
+        conf = risk / (play_p + 1e-12)
         results.append({
             "layer": layer["layer_index"],
             "play_probability": float(play_p),
             "pass_probability": float(pass_p),
             "risk_score": float(risk),
+            "confidence":float(conf),
             "top_tokens": layer["top_tokens"][:5],
         })
         layers.append(layer["layer_index"])
         play_probs.append(play_p)
         pass_probs.append(pass_p)
         risk_scores.append(risk)
+        confidence_scores.append(conf)
 
     # Add insights
     max_risk_layer = layers[risk_scores.index(max(risk_scores))]
@@ -126,17 +130,32 @@ def analyze_logit_lense(logit_lens_results, timestamp):
         json.dump(full_results, f, indent=2)
     logger.info(f"Logit lens JSON saved to {json_path}")
 
+   
     # Plot probabilities and risk score
     plt.figure(figsize=(10, 6))
     plt.plot(layers, play_probs, label='Play Probability', marker='o')
     plt.plot(layers, pass_probs, label='Pass Probability', marker='o')
     plt.plot(layers, risk_scores, label='Risk Score (Play - Pass)', marker='x', linestyle='--')
+    # plt.plot(layers, confidence_scores, label='Confidence Score (Play - Pass)/ Play', marker='o', linestyle='--')
     plt.xlabel('Layer Index')
     plt.ylabel('Probability / Score')
     plt.title('Logit Lens Analysis: Play vs Pass Over Layers')
     plt.legend()
     plt.grid(True)
     plot_path = f"outputs/logit_lens_plot_{timestamp}.png"
+    plt.savefig(plot_path)
+    plt.close()
+    logger.info(f"Logit lens plot saved to {plot_path}")
+
+     # Plot probabilities and risk score
+    plt.figure(figsize=(10, 6))
+    plt.plot(layers, confidence_scores, label='Confidence Score (Play - Pass)/ Play', marker='o', linestyle='--')
+    plt.xlabel('Layer Index')
+    plt.ylabel('Probability / Score')
+    plt.title('Logit Lens Analysis: Confidence Over Layers')
+    plt.legend()
+    plt.grid(True)
+    plot_path = f"outputs/logit_lens_plot2_{timestamp}.png"
     plt.savefig(plot_path)
     plt.close()
     logger.info(f"Logit lens plot saved to {plot_path}")

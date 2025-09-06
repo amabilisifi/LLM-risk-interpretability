@@ -20,7 +20,7 @@ load_dotenv()
 auth_token = os.getenv("AUTH_TOKEN")
 
 # --- Model setup ---
-MODEL_NAME = ModelEnum.GEMMA_2B
+MODEL_NAME = ModelEnum.LLAMA3_8B
 LOCAL_DIR = "./models/" + ModelEnum.get_model_name(MODEL_NAME)
 
 try:
@@ -42,7 +42,7 @@ output_dir = "./outputs"
 os.makedirs(output_dir, exist_ok=True)
 
 # --- Prompt ---
-entrance_fee = 100
+entrance_fee = 1000000
 input_text = get_st_petersburg_prompt(entrance_fee)
 print("--- [Sending Prompt to Model] ---")
 print(input_text)
